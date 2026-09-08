@@ -1,0 +1,13 @@
+services:
+  datalake:
+    build: .
+    ports:
+      - "5173:5173"
+    volumes:
+      # Monta tu código local dentro del contenedor — así editas en tu
+      # editor normal y el contenedor ve los cambios al instante.
+      - .:/app
+      # Pero NO montamos node_modules del host: usamos el que ya se
+      # instaló dentro del contenedor (evita conflictos de sistema
+      # operativo entre tu máquina y el contenedor Linux).
+      - /app/node_modules
