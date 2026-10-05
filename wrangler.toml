@@ -2,7 +2,7 @@ name = "trolebus-api-proxy"
 main = "cloudflare-worker.js"
 compatibility_date = "2026-09-01"
 
-account_id = 91842bd751932d73630590230c9c2780
+account_id = "91842bd751932d73630590230c9c2780"
 
 routes = [
   { pattern = "monitoring.viccoding.dev/api/*", zone_name = "viccoding.dev" }
