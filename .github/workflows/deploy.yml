@@ -1,14 +1,9 @@
-name: Deploy a GitHub Pages
+name: Deploy a GitHub Pages & Cloudflare Worker
 
 on:
   push:
     branches: [main]
-  workflow_dispatch: # permite lanzarlo manualmente desde la pestaña Actions
-
-permissions:
-  contents: read
-  pages: write
-  id-token: write
+  workflow_dispatch:
 
 concurrency:
   group: pages
@@ -36,11 +31,15 @@ jobs:
       - name: Preparar el artefacto de Pages
         uses: actions/upload-pages-artifact@v3
         with:
-          path: ./dist
+          path: ./dist # Asegúrate de que la salida de tu build esté aquí
 
   deploy:
     needs: build
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
@@ -54,6 +53,15 @@ jobs:
     steps:
       - name: Descargar el código
         uses: actions/checkout@v4
+
+      - name: Instalar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Instalar dependencias
+        run: npm ci
 
       - name: Publicar el Worker (proxy de /api) en Cloudflare
         uses: cloudflare/wrangler-action@v3
