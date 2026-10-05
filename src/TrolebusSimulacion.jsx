@@ -37,9 +37,15 @@ import {
 // cambiar el `method` de la llamada correspondiente.
 // ---------------------------------------------------------------------------
 
-// Con "proxy": "https://simulacion.viccoding.dev" en package.json,
-// esta ruta relativa la resuelve el servidor de desarrollo de CRA,
-// no el navegador — así se evita el bloqueo de CORS.
+// Ruta relativa en ambos entornos:
+// - En desarrollo ("npm run dev"), la resuelve el proxy de vite.config.js.
+// - En producción (GitHub Pages + dominio en Cloudflare), la resuelve el
+//   Cloudflare Worker enganchado a la ruta "tudominio.com/api/*".
+// En los dos casos, alguien más (no el navegador) hace la llamada real al
+// backend — por eso nunca hay un problema de CORS.
+// Ruta relativa en los dos ambientes: en desarrollo la resuelve el proxy
+// de Vite; en producción (monitoring.viccoding.dev) la intercepta el
+// Worker de Cloudflare — mismo dominio en ambos casos, mismo código.
 const API_BASE = "/api/v1";
 const POLL_MS = 5000;
 const MAX_HISTORY = 400; // ~33 min a 5s por ciclo — suficiente para ver salidas escalonadas
@@ -138,6 +144,37 @@ export default function TrolebusSimulacion() {
     return colorMap.current[id];
   };
 
+  const procesarTrolebus = useCallback((data) => {
+    setTrolebuses(data.trolebuses ?? []);
+    setMetaTrolebus(data.meta ?? null);
+
+    if (data.meta) {
+      setHistory((prev) => {
+        const point = { step: data.meta.step };
+        (data.trolebuses ?? []).forEach((t) => {
+          point[t.trolebus_id] = t.distancia_recorrida;
+          assignColor(t.trolebus_id);
+        });
+        const next = [...prev, point];
+        return next.length > MAX_HISTORY ? next.slice(next.length - MAX_HISTORY) : next;
+      });
+
+      setVelocidadHistory((prev) => {
+        const velocidades = (data.trolebuses ?? []).map((t) => t.velocidad_kmh);
+        const media = velocidades.length
+          ? velocidades.reduce((a, b) => a + b, 0) / velocidades.length
+          : 0;
+        const next = [...prev, { step: data.meta.step, velocidadMedia: +media.toFixed(2) }];
+        return next.length > MAX_HISTORY ? next.slice(next.length - MAX_HISTORY) : next;
+      });
+    }
+  }, []);
+
+  const procesarPeatones = useCallback((data) => {
+    setParadas(data.paradas ?? []);
+    setMetaPeatones(data.meta ?? null);
+  }, []);
+
   const fetchAll = useCallback(async () => {
     console.log(`[fetchAll] iniciando ciclo de actualización — ${new Date().toLocaleTimeString("es-MX")}`);
     try {
@@ -145,44 +182,20 @@ export default function TrolebusSimulacion() {
         apiGet("/trolebus"),
         apiGet("/peatones"),
       ]);
-
-      setTrolebuses(trolebusData.trolebuses ?? []);
-      setMetaTrolebus(trolebusData.meta ?? null);
-      setParadas(peatonesData.paradas ?? []);
-      setMetaPeatones(peatonesData.meta ?? null);
+      procesarTrolebus(trolebusData);
+      procesarPeatones(peatonesData);
       setFetchError(null);
       setConexion("ok");
       setUltimaConexionOk(new Date());
       console.log(
         `[fetchAll] ✓ ciclo completo — ${trolebusData.trolebuses?.length ?? 0} trolebuses, ${peatonesData.paradas?.length ?? 0} paradas`
       );
-
-      if (trolebusData.meta) {
-        setHistory((prev) => {
-          const point = { step: trolebusData.meta.step };
-          (trolebusData.trolebuses ?? []).forEach((t) => {
-            point[t.trolebus_id] = t.distancia_recorrida;
-            assignColor(t.trolebus_id);
-          });
-          const next = [...prev, point];
-          return next.length > MAX_HISTORY ? next.slice(next.length - MAX_HISTORY) : next;
-        });
-
-        setVelocidadHistory((prev) => {
-          const velocidades = (trolebusData.trolebuses ?? []).map((t) => t.velocidad_kmh);
-          const media = velocidades.length
-            ? velocidades.reduce((a, b) => a + b, 0) / velocidades.length
-            : 0;
-          const next = [...prev, { step: trolebusData.meta.step, velocidadMedia: +media.toFixed(2) }];
-          return next.length > MAX_HISTORY ? next.slice(next.length - MAX_HISTORY) : next;
-        });
-      }
     } catch (e) {
       console.error("[fetchAll] ✗ ciclo falló:", e);
       setFetchError(e.message || "No se pudo conectar con la API.");
       setConexion("error");
     }
-  }, []);
+  }, [procesarTrolebus, procesarPeatones]);
 
   useEffect(() => {
     fetchAll();
@@ -200,7 +213,6 @@ export default function TrolebusSimulacion() {
     try {
       const data = await fn();
       setSimMsg({ texto: data.mensaje || successLabel, ok: data.estado === "ok" });
-      if (key !== "validar") fetchAll();
     } catch (e) {
       setSimMsg({ texto: e.message || "La acción falló.", ok: false });
     } finally {
