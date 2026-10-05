@@ -31,7 +31,7 @@ jobs:
       - name: Preparar el artefacto de Pages
         uses: actions/upload-pages-artifact@v3
         with:
-          path: ./dist # Asegúrate de que la salida de tu build esté aquí
+          path: ./build
 
   deploy:
     needs: build
