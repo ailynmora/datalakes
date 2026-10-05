@@ -66,5 +66,5 @@ jobs:
       - name: Publicar el Worker (proxy de /api) en Cloudflare
         uses: cloudflare/wrangler-action@v3
         with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN}}
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           workingDirectory: 
